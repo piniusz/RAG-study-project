@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*./__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.env
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Database
+*.db
+*.sqlite3
+data/03_embedded/chroma.sqlite3
+
+# Embedded vectors and indexes
+data/03_embedded/*/data_level0.bin
+data/03_embedded/*/header.bin
+data/03_embedded/*/index_metadata.pickle
+data/03_embedded/*/length.bin
+data/03_embedded/*/link_lists.bin
+
+# Local configuration files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Log files
+*.log
+logs/
+logging/
+
+# Cache files
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Poetry
+poetry.lock
+# local data
+data/
