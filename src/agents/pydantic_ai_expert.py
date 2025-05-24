@@ -91,7 +91,7 @@ async def retrieve_relevant_chunks(
         )
         search_results = pydantic_documentation_collection.query(
             query_embeddings=[query_embedding_vector],
-            n_results=5,
+            n_results=10,
         )
 
         # Format the results
@@ -167,6 +167,7 @@ def query_results_to_markdown(query_results: dict) -> str:
     for j in range(len(metadata_list)):
         meta = metadata_list[j]
         doc_content = document_list[j]  # Get the corresponding document chunk
+        doc_content = doc_content[doc_content.rfind("</context>") + 10 :]
 
         tittle = meta.get("tittle", "Untitled").strip()
         section = meta.get("section", "Unsectioned").strip()
