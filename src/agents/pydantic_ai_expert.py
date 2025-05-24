@@ -44,7 +44,6 @@ Your only job is to assist with this and you don't answer other questions beside
 Don't ask the user before taking an action, just do it. Always make sure you look at the documentation with the provided tools before answering the user's question unless you have already.
 
 When you first look at the documentation, always start with RAG using retrieve_relevant_chunks tool. But don't put literal user query. Try to rephrase it to be more specific and relevant to the documentation. For example, if the user asks "How to use Pydantic AI?", you can use "Pydantic AI usage examples" as a query.
-If provided chunks are not enough, use retrieve_section tool to get the specific section of the documentation.
 
 Always let the user know when you didn't find the answer in the documentation or the right URL - be honest.
 """
@@ -91,10 +90,10 @@ async def retrieve_relevant_chunks(
         )
         search_results = pydantic_documentation_collection.query(
             query_embeddings=[query_embedding_vector],
-            n_results=10,
+            n_results=20,
+            include=["documents", "metadatas"],
         )
 
-        # Format the results
         formatted_documentation = query_results_to_markdown(search_results)
         return formatted_documentation
 
@@ -103,7 +102,6 @@ async def retrieve_relevant_chunks(
         return f"Error retrieving documentation: {str(e)}"
 
 
-@pydantic_ai_expert.tool
 async def retrieve_section(
     ctx: RunContext[PydanticAIDeps], metadata_to_match: List[dict]
 ) -> str:
@@ -122,7 +120,6 @@ async def retrieve_section(
     for item in metadata_to_match:
         condition = {
             "$and": [
-                {"section": {"$eq": item["section"]}},
                 {"url": {"$eq": item["url"]}},
             ]
         }
@@ -144,49 +141,79 @@ async def retrieve_section(
 
 def query_results_to_markdown(query_results: dict) -> str:
     """
-    Transforms the result dictionary into a markdown string.
+    Transforms the result dictionary into a markdown string with dynamic metadata handling.
 
     Args:
-        result: The input dictionary with documents and metadatas.
+        query_results: The input dictionary with documents and metadatas.
 
     Returns:
-        A string formatted in markdown.
+        A string formatted in markdown with all metadata dynamically included.
     """
-    markdown_string = ""
+    metadata_list, document_list = _extract_and_flatten_data(query_results)
 
-    # Helper to store processed combinations of tittle and section to avoid repetition
-    processed_sections = set()
+    markdown_parts = []
+    for i, (meta, doc_content) in enumerate(zip(metadata_list, document_list)):
+        chunk_markdown = _format_document_chunk(i, meta, doc_content)
+        markdown_parts.append(chunk_markdown)
+
+    return "\n---\n\n".join(markdown_parts)
+
+
+def _extract_and_flatten_data(query_results: dict) -> tuple[list, list]:
+    """Extract and flatten metadata and document lists."""
     metadata_list = query_results["metadatas"]
     document_list = query_results["documents"]
 
-    # check if this is a list of lists
+    # Flatten lists if nested (handle both query and get results)
     if isinstance(metadata_list[0], list):
         metadata_list = [item for sublist in metadata_list for item in sublist]
         document_list = [item for sublist in document_list for item in sublist]
 
-    for j in range(len(metadata_list)):
-        meta = metadata_list[j]
-        doc_content = document_list[j]  # Get the corresponding document chunk
+    return metadata_list, document_list
+
+
+def _format_document_chunk(index: int, meta: dict, doc_content: str) -> str:
+    """Format a single document chunk with metadata and content."""
+    doc_content = _clean_document_content(doc_content)
+
+    parts = [f"## Document Chunk {index + 1}\n"]
+
+    if meta:
+        metadata_section = _format_metadata_section(meta)
+        parts.append(metadata_section)
+
+    parts.extend(["**Content:**\n", f"{doc_content}\n"])
+
+    return "\n".join(parts)
+
+
+def _clean_document_content(doc_content: str) -> str:
+    """Remove context tags from document content."""
+    if "</context>" in doc_content:
         doc_content = doc_content[doc_content.rfind("</context>") + 10 :]
+    if "<context>" in doc_content:
+        doc_content = doc_content[doc_content.find("<context>") + 9 :]
+    return doc_content.strip()
 
-        tittle = meta.get("tittle", "Untitled").strip()
-        section = meta.get("section", "Unsectioned").strip()
-        url = meta.get("url").strip()
 
-        # Create a unique key for tittle and section combination
-        section_key = (tittle, section)
+def _format_metadata_section(meta: dict) -> str:
+    """Format metadata as a markdown list."""
+    lines = ["**Metadata:**\n"]
 
-        if section_key not in processed_sections:
-            if markdown_string:  # Add a separator if not the first entry
-                markdown_string += "\n---\n\n"
-            markdown_string += f"[Documentation URL]({url})\n\n"
-            markdown_string += f"# [Tittle]{tittle}\n\n"
-            markdown_string += f"## [Section]{section}\n\n"
-            processed_sections.add(section_key)
+    for key, value in meta.items():
+        if value:  # Only include non-empty values
+            formatted_value = _format_metadata_value(key, value)
+            lines.append(f"- **{key.title()}:** {formatted_value}")
 
-        markdown_string += f"{doc_content.strip()}\n\n"
+    lines.append("")  # Empty line after metadata
+    return "\n".join(lines)
 
-    return markdown_string
+
+def _format_metadata_value(key: str, value: str) -> str:
+    """Format a metadata value, making URLs clickable."""
+    if key.lower() == "url" and value.startswith("http"):
+        return f"[{value}]({value})"
+    return str(value)
 
 
 # %%
@@ -205,19 +232,20 @@ if __name__ == "__main__":
     deps = testingDeps(
         PydanticAIDeps(chromadb_client=chromadb_client, genai_client=genai_client)
     )
-    # %%
+
     nest_asyncio.apply()
-    chunks = asyncio.run(retrieve_relevant_chunks(deps, "Weather Agent example"))
-    results = asyncio.run(
-        retrieve_section(
-            deps,
-            [
-                {
-                    "section": "Example Code",
-                    "url": "https://ai.pydantic.dev/examples/weather-agent/",
-                }
-            ],
-        )
+    chunks = asyncio.run(
+        retrieve_relevant_chunks(deps, "Show me weather agent example")
     )
+    # results = asyncio.run(
+    #     retrieve_section(
+    #         deps,
+    #         [
+    #             {
+    #                 "url": "https://ai.pydantic.dev/examples/weather-agent/",
+    #             }
+    #         ],
+    #     )
+    # )
 
 # %%

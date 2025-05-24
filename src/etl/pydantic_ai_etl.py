@@ -3,7 +3,7 @@ import asyncio
 import os
 import nest_asyncio
 from src.utils.crawlers import get_urls_from_sitemap, extract_markdown_from_urls
-from src.utils.text_splitters import split_markdown_on_characters
+from src.utils.text_splitters import advanced_markdown_chunking
 import logging
 import json
 from chromadb import ClientAPI as ChromadbClientAPI
@@ -56,7 +56,7 @@ async def main():
 
     logging.info("Splitting article content into chunks")
     split_tasks = [
-        split_markdown_on_characters(
+        advanced_markdown_chunking(
             article["url"], article["content"], True, model, client
         )
         for article in url_articles
